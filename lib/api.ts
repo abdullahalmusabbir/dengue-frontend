@@ -13,7 +13,7 @@ import type {
 // ============================================================
 
 const API_BASE_URL =
-    process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:8000/api/dengue";
+    process.env.NEXT_PUBLIC_API_BASE_URL || "https://dengue-backend-2v0q.onrender.com/api/dengue";
 
 export const apiClient: AxiosInstance = axios.create({
     baseURL: API_BASE_URL,
