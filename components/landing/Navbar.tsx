@@ -27,9 +27,21 @@ export default function Navbar() {
 
     useEffect(() => {
         if (!isReady) return;
-        checkHealth()
-            .then((res) => setModelOnline(res.model_loaded))
-            .catch(() => setModelOnline(false));
+
+        let cancelled = false;
+        const runCheck = () => {
+            if (cancelled) return;
+            checkHealth()
+                .then((res) => !cancelled && setModelOnline(res.model_loaded))
+                .catch(() => !cancelled && setModelOnline(false));
+        };
+
+        runCheck();
+        const retry = setTimeout(runCheck, 8000);
+        return () => {
+            cancelled = true;
+            clearTimeout(retry);
+        };
     }, [isReady]);
 
     return (
