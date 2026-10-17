@@ -1,139 +1,108 @@
-import axios, { AxiosError, AxiosInstance } from "axios";
+// ===================================================================
+// lib/api.ts
+// Django backend এর সাথে কথা বলার জন্য centralized API client।
+// কোনো auth token/header লাগবে না - backend পুরোপুরি public (AllowAny)।
+// ===================================================================
+
 import type {
-    DenguePredictionInput,
-    PredictApiResponse,
-    HistoryApiResponse,
-    DetailApiResponse,
-    HealthCheckResponse,
-    ApiError,
-} from "@/types";
+    DengueInputPayload,
+    DenguePredictionResult,
+    DenguePredictionRecord,
+    ApiErrorResponse,
+} from '@/types';
 
-// ============================================================
-// Axios Instance Configuration
-// ============================================================
-
+// .env.local এ NEXT_PUBLIC_API_BASE_URL=http://localhost:8000 সেট করবে
 const API_BASE_URL =
-    process.env.NEXT_PUBLIC_API_BASE_URL || "https://dengue-backend-2v0q.onrender.com/api/dengue";
+    process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000';
 
-export const apiClient: AxiosInstance = axios.create({
-    baseURL: API_BASE_URL,
-    headers: {
-        "Content-Type": "application/json",
-    },
-    timeout: 120000, // ML inference একটু সময় নিতে পারে
-});
+const PREDICT_ENDPOINT = `${API_BASE_URL}/api/dengues/predict/`;
+const HISTORY_ENDPOINT = `${API_BASE_URL}/api/dengues/history/`;
 
-// ------------------------------------------------------------
-// Request Interceptor — anonymous session id attach করা (login নেই)
-// ------------------------------------------------------------
-apiClient.interceptors.request.use((config) => {
-    if (typeof window !== "undefined") {
-        const sessionId = localStorage.getItem("dengue_session_id");
-        if (sessionId) {
-            config.headers["X-Session-Id"] = sessionId;
-        }
+// ---------- Custom error class ----------
+export class ApiError extends Error {
+    status: number;
+    payload: ApiErrorResponse | null;
+
+    constructor(message: string, status: number, payload: ApiErrorResponse | null = null) {
+        super(message);
+        this.name = 'ApiError';
+        this.status = status;
+        this.payload = payload;
     }
-    return config;
-});
-
-// ------------------------------------------------------------
-// Error Normalizer
-// ------------------------------------------------------------
-function normalizeError(error: unknown): ApiError {
-    if (axios.isAxiosError(error)) {
-        const axiosErr = error as AxiosError<{
-            error?: string;
-            errors?: Record<string, string[]>;
-        }>;
-
-        const status = axiosErr.response?.status;
-        const data = axiosErr.response?.data;
-
-        if (data?.errors) {
-            return {
-                message: "Validation failed. Please check your input.",
-                status,
-                fieldErrors: data.errors,
-            };
-        }
-
-        if (data?.error) {
-            return { message: data.error, status };
-        }
-
-        if (axiosErr.code === "ECONNABORTED") {
-            return { message: "Request timed out. Please try again.", status };
-        }
-
-        if (!axiosErr.response) {
-            return { message: "Cannot connect to server. Please check your connection." };
-        }
-
-        return { message: axiosErr.message || "Something went wrong.", status };
-    }
-
-    return { message: "An unexpected error occurred." };
 }
 
-// ============================================================
-// API Functions
-// ============================================================
+// ---------- Generic fetch wrapper ----------
+async function request<T>(
+    url: string,
+    options: RequestInit = {}
+): Promise<T> {
+    let response: Response;
+
+    try {
+        response = await fetch(url, {
+            ...options,
+            headers: {
+                'Content-Type': 'application/json',
+                ...(options.headers || {}),
+            },
+            // login নাই, তাই credentials/cookies পাঠানোর দরকার নেই
+            cache: 'no-store',
+        });
+    } catch (networkErr) {
+        throw new ApiError(
+            'Server এর সাথে connect করা যাচ্ছে না। Backend চালু আছে কিনা চেক করো।',
+            0,
+            null
+        );
+    }
+
+    let data: any = null;
+    try {
+        data = await response.json();
+    } catch {
+        // body খালি থাকলে বা JSON না হলে ignore
+    }
+
+    if (!response.ok) {
+        const message = data?.error || data?.detail || (data ? JSON.stringify(data) : 'Unknown error occurred');
+        throw new ApiError(message, response.status, data);
+    }
+
+    return data as T;
+}
+
+// ===================================================================
+// ⭐ Public API functions
+// ===================================================================
 
 /**
- * CBC ডেটা পাঠিয়ে dengue prediction, explanation এবং probability% পাওয়া
+ * POST /api/dengues/predict/
+ * CBC input পাঠিয়ে probability %, risk group, explanation পাওয়া যাবে।
  */
 export async function predictDengue(
-    payload: DenguePredictionInput
-): Promise<PredictApiResponse> {
-    try {
-        const { data } = await apiClient.post<PredictApiResponse>(
-            "/predict/",
-            payload
-        );
-        return data;
-    } catch (error) {
-        throw normalizeError(error);
-    }
+    payload: DengueInputPayload
+): Promise<DenguePredictionResult> {
+    return request<DenguePredictionResult>(PREDICT_ENDPOINT, {
+        method: 'POST',
+        body: JSON.stringify(payload),
+    });
 }
 
 /**
- * সর্বশেষ prediction history (সর্বোচ্চ ৫০টি রেকর্ড)
+ * GET /api/dengues/history/
+ * সাম্প্রতিক prediction history list (সর্বোচ্চ ৫০টা, backend থেকেই limited)।
  */
-export async function getPredictionHistory(): Promise<HistoryApiResponse> {
-    try {
-        const { data } = await apiClient.get<HistoryApiResponse>("/history/");
-        return data;
-    } catch (error) {
-        throw normalizeError(error);
-    }
+export async function fetchPredictionHistory(): Promise<
+    DenguePredictionRecord[]
+> {
+    return request<DenguePredictionRecord[]>(HISTORY_ENDPOINT, {
+        method: 'GET',
+    });
 }
 
-/**
- * নির্দিষ্ট একটি prediction রেকর্ডের বিস্তারিত তথ্য
- */
-export async function getPredictionDetail(
-    id: string
-): Promise<DetailApiResponse> {
-    try {
-        const { data } = await apiClient.get<DetailApiResponse>(
-            `/history/${id}/`
-        );
-        return data;
-    } catch (error) {
-        throw normalizeError(error);
-    }
-}
+const api = {
+    predictDengue,
+    fetchPredictionHistory,
+};
 
-/**
- * ব্যাকএন্ড মডেল ঠিকভাবে লোড হয়েছে কিনা চেক করা
- */
-export async function checkHealth(): Promise<HealthCheckResponse> {
-    try {
-        const { data } = await apiClient.get<HealthCheckResponse>("/health/");
-        return data;
-    } catch (error) {
-        throw normalizeError(error);
-    }
-}
-
-export default apiClient;
+export default api;

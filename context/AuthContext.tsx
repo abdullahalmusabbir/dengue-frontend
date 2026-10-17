@@ -1,83 +1,58 @@
-"use client";
+'use client';
 
-import React, {
+// ===================================================================
+// context/AuthContext.tsx
+// ⚠️ এই backend এ কোনো login/authentication নেই (সম্পূর্ণ public app)।
+// এই context শুধু "guest user" state রাখে যাতে frontend structure
+// consistent থাকে এবং ভবিষ্যতে সত্যিকারের auth যোগ করতে চাইলে সহজ হয়।
+// কোনো route protect করে না, কোনো API কল করে না।
+// ===================================================================
+
+import {
     createContext,
     useContext,
-    useEffect,
     useState,
     ReactNode,
-} from "react";
+    useMemo,
+} from 'react';
+import type { GuestUser } from '@/types';
 
-// ============================================================
-// Types
-// ============================================================
-
-interface AuthContextType {
-    sessionId: string | null;
-    isAuthenticated: boolean; // login না থাকায় সবসময় true
-    isReady: boolean; // session initialize হয়েছে কিনা
-    resetSession: () => void;
+interface AuthContextValue {
+    user: GuestUser;
+    isAuthenticated: boolean; // সবসময় true - কারণ login লাগে না, সবাই app ব্যবহার করতে পারবে
+    displayName: string;
+    setDisplayName: (name: string) => void;
 }
 
-// ============================================================
-// Context Setup
-// ============================================================
+const defaultGuestUser: GuestUser = {
+    isGuest: true,
+    displayName: 'Guest User',
+};
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
-
-const SESSION_STORAGE_KEY = "dengue_session_id";
-
-function generateSessionId(): string {
-    if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
-        return crypto.randomUUID();
-    }
-    // fallback (খুব পুরনো ব্রাউজারের জন্য)
-    return `session-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-}
-
-// ============================================================
-// Provider
-// ============================================================
+const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-    const [sessionId, setSessionId] = useState<string | null>(null);
-    const [isReady, setIsReady] = useState(false);
+    const [displayName, setDisplayName] = useState<string>(
+        defaultGuestUser.displayName
+    );
 
-    useEffect(() => {
-        // শুধু browser এ চলবে (SSR এ localStorage নেই)
-        let existing = localStorage.getItem(SESSION_STORAGE_KEY);
-        if (!existing) {
-            existing = generateSessionId();
-            localStorage.setItem(SESSION_STORAGE_KEY, existing);
-        }
-        setSessionId(existing);
-        setIsReady(true);
-    }, []);
-
-    const resetSession = () => {
-        const newId = generateSessionId();
-        localStorage.setItem(SESSION_STORAGE_KEY, newId);
-        setSessionId(newId);
-    };
-
-    const value: AuthContextType = {
-        sessionId,
-        isAuthenticated: true, // Login প্রয়োজন নেই — সবাই অ্যাক্সেস পাবে
-        isReady,
-        resetSession,
-    };
+    const value = useMemo<AuthContextValue>(
+        () => ({
+            user: { isGuest: true, displayName },
+            isAuthenticated: true, // login নেই, তাই সবসময় access দেওয়া হয়
+            displayName,
+            setDisplayName,
+        }),
+        [displayName]
+    );
 
     return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
-// ============================================================
-// Hook
-// ============================================================
-
-export function useAuth(): AuthContextType {
-    const context = useContext(AuthContext);
-    if (context === undefined) {
-        throw new Error("useAuth must be used within an AuthProvider");
+export function useAuth(): AuthContextValue {
+    const ctx = useContext(AuthContext);
+    if (!ctx) {
+        throw new Error('useAuth অবশ্যই <AuthProvider> এর ভিতরে ব্যবহার করতে হবে');
     }
-    return context;
+    return ctx;
 }

@@ -1,107 +1,132 @@
-"use client";
+'use client';
 
-import React, { useEffect, useState } from "react";
-import { motion } from "framer-motion";
-import { Activity, Mail, Heart, ShieldCheck } from "lucide-react";
-import {FaGithub } from "react-icons/fa";
+// ===================================================================
+// components/landing/Footer.tsx
+// Scroll-triggered fade-in animation for footer sections।
+// ===================================================================
 
-const FOOTER_LINKS = {
-    Product: [
-        { label: "Features", href: "#features" },
-        { label: "Check Now", href: "#predict-form" },
-        { label: "How It Works", href: "#how-it-works" },
-    ],
-    Resources: [
-        { label: "About D-CHSS", href: "#about" },
-        { label: "Model Explainability", href: "#features" },
-        { label: "FAQ", href: "#faq" },
-    ],
-};
-
+import { useEffect, useState } from 'react';
+import { motion } from 'framer-motion';
+import { Activity, ShieldAlert} from 'lucide-react';
+import { FaGithub } from 'react-icons/fa';
 export default function Footer() {
-    const [year, setYear] = useState<number | null>(null);
+    const [year, setYear] = useState<number>(0);
 
     useEffect(() => {
         setYear(new Date().getFullYear());
     }, []);
 
     return (
-        <footer className="relative mt-24 border-t border-slate-100 bg-white">
-            <div className="mx-auto max-w-7xl px-6 py-14 lg:px-8">
+        <footer id="about" className="border-t border-slate-200 bg-white">
+            {/* ---------- Disclaimer banner ---------- */}
+            <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, amount: 0.3 }}
+                transition={{ duration: 0.5 }}
+                className="border-b border-amber-200 bg-amber-50"
+            >
+                <div className="mx-auto flex max-w-6xl items-start gap-3 px-4 py-4 sm:px-6">
+                    <motion.span
+                        animate={{ rotate: [0, -10, 10, 0] }}
+                        transition={{ duration: 2, repeat: Infinity, repeatDelay: 2 }}
+                    >
+                        <ShieldAlert className="mt-0.5 shrink-0 text-amber-500" size={20} />
+                    </motion.span>
+                    <p className="text-sm leading-relaxed text-amber-800">
+                        <span className="font-semibold">⚠ Disclaimer: </span>
+                        এই টুলটি একটি <span className="font-semibold">গবেষণা প্রদর্শনী (research demonstration)</span> মাত্র —
+                        এটি কোনো মেডিকেল ডায়াগনোসিস টুল নয়। কোনো স্বাস্থ্য সিদ্ধান্তের জন্য অবশ্যই একজন যোগ্য চিকিৎসকের পরামর্শ নিন।
+                        <br className="hidden sm:block" />
+                        <span className="italic">
+                            Research demonstration only — NOT a medical diagnosis tool.
+                        </span>
+                    </p>
+                </div>
+            </motion.div>
+
+            {/* ---------- Main footer content ---------- */}
+            <motion.div
+                initial={{ opacity: 0, y: 30 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, amount: 0.2 }}
+                transition={{ duration: 0.6, staggerChildren: 0.15 }}
+                className="mx-auto grid max-w-6xl gap-8 px-4 py-10 sm:px-6 md:grid-cols-3"
+            >
+                {/* Brand */}
                 <motion.div
-                    initial={{ opacity: 0, y: 30 }}
+                    initial={{ opacity: 0, y: 20 }}
                     whileInView={{ opacity: 1, y: 0 }}
                     viewport={{ once: true }}
-                    transition={{ duration: 0.6 }}
-                    className="grid grid-cols-1 gap-10 md:grid-cols-4"
+                    transition={{ duration: 0.5, delay: 0.1 }}
                 >
-                    {/* Brand */}
-                    <div className="md:col-span-2">
-                        <div className="flex items-center gap-2">
-                            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-teal-500 to-cyan-500">
-                                <Activity className="h-4.5 w-4.5 text-white" />
-                            </div>
-                            <span className="text-lg font-bold text-slate-800">D-CHSS</span>
-                        </div>
-                        <p className="mt-4 max-w-sm text-sm leading-relaxed text-slate-500">
-                            An interpretable Clinical Hematological Signature-based machine
-                            learning framework for instant, explainable Dengue detection
-                            using routine CBC blood reports.
-                        </p>
-                        <div className="mt-5 flex items-center gap-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700 border border-amber-100">
-                            <ShieldCheck className="h-4 w-4 shrink-0" />
-                            <span>
-                                For screening &amp; research purposes only — not a substitute
-                                for professional medical diagnosis.
-                            </span>
-                        </div>
+                    <div className="flex items-center gap-2">
+                        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-sky-100 text-sky-600">
+                            <Activity size={18} />
+                        </span>
+                        <span className="text-base font-bold text-slate-800">D-CHSS</span>
                     </div>
-
-                    {/* Links */}
-                    {Object.entries(FOOTER_LINKS).map(([section, links]) => (
-                        <div key={section}>
-                            <h4 className="text-sm font-semibold text-slate-800">
-                                {section}
-                            </h4>
-                            <ul className="mt-4 space-y-2.5">
-                                {links.map((link) => (
-                                    <li key={link.href}>
-                                        <a
-                                            href={link.href}
-                                            className="text-sm text-slate-500 transition-colors hover:text-teal-600"
-                                        >
-                                            {link.label}
-                                        </a>
-                                    </li>
-                                ))}
-                            </ul>
-                        </div>
-                    ))}
+                    <p className="mt-3 text-sm leading-relaxed text-slate-500">
+                        Dengue Clinical Hematological Signature Score — CBC রিপোর্ট থেকে
+                        ইন্টারপ্রিটেবল, probability-ভিত্তিক ডেঙ্গু ঝুঁকি নির্ণয়ের একটি গবেষণা প্রজেক্ট।
+                    </p>
                 </motion.div>
 
-                <div className="mt-12 flex flex-col items-center justify-between gap-4 border-t border-slate-100 pt-8 sm:flex-row">
-                    <p className="text-xs text-slate-400">
-                        © {year} D-CHSS Dengue Detection Framework. All rights reserved.
-                    </p>
-                    <div className="flex items-center gap-4">
-                        <a
-                            href="#"
-                            className="text-slate-400 transition-colors hover:text-teal-600"
-                            aria-label="GitHub"
-                        >
-                            <FaGithub className="h-4.5 w-4.5" />
-                        </a>
-                        <a
-                            href="#"
-                            className="text-slate-400 transition-colors hover:text-teal-600"
-                            aria-label="Email"
-                        >
-                            <Mail className="h-4.5 w-4.5" />
-                        </a>
-                    </div>
-                    <p className="flex items-center gap-1 text-xs text-slate-400">
-                        Built with <Heart className="h-3.5 w-3.5 fill-rose-400 text-rose-400" /> for better healthcare
-                    </p>
+                {/* Quick links */}
+                <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    viewport={{ once: true }}
+                    transition={{ duration: 0.5, delay: 0.2 }}
+                >
+                    <h4 className="text-sm font-semibold text-slate-700">দ্রুত লিংক</h4>
+                    <ul className="mt-3 space-y-2 text-sm text-slate-500">
+                        {[
+                            { label: 'হোম', href: '#home' },
+                            { label: 'প্রেডিকশন ফর্ম', href: '#predict' },
+                            { label: 'ফলাফল ও ব্যাখ্যা', href: '#result' },
+                            { label: 'পূর্ববর্তী ফলাফল', href: '#history' },
+                        ].map((item) => (
+                            <li key={item.href}>
+                                <a
+                                    href={item.href}
+                                    className="inline-block transition-all duration-200 hover:translate-x-1 hover:text-sky-600"
+                                >
+                                    {item.label}
+                                </a>
+                            </li>
+                        ))}
+                    </ul>
+                </motion.div>
+
+                {/* Model info */}
+                <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    viewport={{ once: true }}
+                    transition={{ duration: 0.5, delay: 0.3 }}
+                >
+                    <h4 className="text-sm font-semibold text-slate-700">মডেল সম্পর্কে</h4>
+                    <ul className="mt-3 space-y-2 text-sm text-slate-500">
+                        <li>Pure Python লজিস্টিক রিগ্রেশন</li>
+                        <li>Isotonic Regression ক্যালিব্রেশন</li>
+                        <li>Feature-wise Contribution ব্যাখ্যা</li>
+                        <li>কোনো external ML library ছাড়াই তৈরি</li>
+                    </ul>
+                </motion.div>
+            </motion.div>
+
+            {/* ---------- Bottom bar ---------- */}
+            <div className="border-t border-slate-100 py-5">
+                <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-3 px-4 text-xs text-slate-400 sm:flex-row sm:px-6">
+                    <p>© {year} D-CHSS Dengue Predictor. সর্বস্বত্ব সংরক্ষিত।</p>
+                    <motion.a
+                        href="#"
+                        whileHover={{ x: 3 }}
+                        className="flex items-center gap-1 hover:text-slate-600"
+                    >
+                        <FaGithub size={14} /> Open Research Project
+                    </motion.a>
                 </div>
             </div>
         </footer>

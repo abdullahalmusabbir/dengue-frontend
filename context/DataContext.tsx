@@ -1,202 +1,168 @@
-"use client";
+'use client';
 
-import React, {
+// ===================================================================
+// context/DataContext.tsx
+// Dengue prediction form state, API call, result, এবং history
+// সবকিছু centralized ভাবে manage করার জন্য context।
+// ===================================================================
+
+import {
     createContext,
     useContext,
     useState,
     useCallback,
     ReactNode,
-} from "react";
-import {
-    predictDengue,
-    getPredictionHistory,
-    getPredictionDetail,
-} from "@/lib/api";
+} from 'react';
+import { predictDengue, fetchPredictionHistory, ApiError } from '@/lib/api';
 import type {
-    DenguePredictionInput,
+    DengueInputPayload,
     DenguePredictionResult,
     DenguePredictionRecord,
-    ApiError,
-} from "@/types";
+} from '@/types';
 
-// ============================================================
-// Types
-// ============================================================
+// ---------- Default empty form state ----------
+const emptyPayload: DengueInputPayload = {
+    gender: 'male',
+    age: 0,
+    hemoglobin: 0,
+    neutrophils: 0,
+    lymphocytes: 0,
+    monocytes: 0,
+    eosinophils: 0,
+    rbc: 0,
+    hct: 0,
+    mcv: 0,
+    mch: 0,
+    mchc: 0,
+    rdw_cv: 0,
+    platelet: 0,
+    mpv: 0,
+    pdw: 0,
+    pct: 0,
+    wbc: 0,
+};
 
-interface DataContextType {
-    // ---- Current Prediction ----
-    currentResult: DenguePredictionResult | null;
-    currentRecordId: string | null;
+interface DataContextValue {
+    // ---- Form state ----
+    formData: DengueInputPayload;
+    setFormData: (data: DengueInputPayload) => void;
+    updateField: <K extends keyof DengueInputPayload>(
+        key: K,
+        value: DengueInputPayload[K]
+    ) => void;
+    resetForm: () => void;
+
+    // ---- Prediction result ----
+    result: DenguePredictionResult | null;
     isPredicting: boolean;
-    predictionError: ApiError | null;
+    predictionError: string | null;
+    submitPrediction: () => Promise<void>;
+    clearResult: () => void;
 
     // ---- History ----
     history: DenguePredictionRecord[];
     isHistoryLoading: boolean;
-    historyError: ApiError | null;
-
-    // ---- Record Detail ----
-    selectedRecord: DenguePredictionRecord | null;
-    isDetailLoading: boolean;
-    detailError: ApiError | null;
-
-    // ---- Actions ----
-    submitPrediction: (payload: DenguePredictionInput) => Promise<boolean>;
-    fetchHistory: () => Promise<void>;
-    fetchRecordDetail: (id: string) => Promise<void>;
-    clearCurrentResult: () => void;
-    clearSelectedRecord: () => void;
+    historyError: string | null;
+    loadHistory: () => Promise<void>;
 }
 
-// ============================================================
-// Context Setup
-// ============================================================
-
-const DataContext = createContext<DataContextType | undefined>(undefined);
+const DataContext = createContext<DataContextValue | undefined>(undefined);
 
 export function DataProvider({ children }: { children: ReactNode }) {
-    // ---- Prediction State ----
-    const [currentResult, setCurrentResult] =
-        useState<DenguePredictionResult | null>(null);
-    const [currentRecordId, setCurrentRecordId] = useState<string | null>(null);
-    const [isPredicting, setIsPredicting] = useState(false);
-    const [predictionError, setPredictionError] = useState<ApiError | null>(
-        null
-    );
+    // ---------------- Form state ----------------
+    const [formData, setFormData] = useState<DengueInputPayload>(emptyPayload);
 
-    // ---- History State ----
-    const [history, setHistory] = useState<DenguePredictionRecord[]>([]);
-    const [isHistoryLoading, setIsHistoryLoading] = useState(false);
-    const [historyError, setHistoryError] = useState<ApiError | null>(null);
-
-    // ---- Detail State ----
-    const [selectedRecord, setSelectedRecord] =
-        useState<DenguePredictionRecord | null>(null);
-    const [isDetailLoading, setIsDetailLoading] = useState(false);
-    const [detailError, setDetailError] = useState<ApiError | null>(null);
-
-    // ------------------------------------------------------------
-    // Submit a new prediction
-    // ------------------------------------------------------------
-    const submitPrediction = useCallback(
-        async (payload: DenguePredictionInput): Promise<boolean> => {
-            setIsPredicting(true);
-            setPredictionError(null);
-            setCurrentResult(null);
-
-            try {
-                const response = await predictDengue(payload);
-
-                if (response.success && response.result) {
-                    setCurrentResult(response.result);
-                    setCurrentRecordId(response.id ?? null);
-                    return true;
-                } else {
-                    setPredictionError({
-                        message: response.error || "Prediction failed.",
-                    });
-                    return false;
-                }
-            } catch (error) {
-                setPredictionError(error as ApiError);
-                return false;
-            } finally {
-                setIsPredicting(false);
-            }
+    const updateField = useCallback(
+        <K extends keyof DengueInputPayload>(
+            key: K,
+            value: DengueInputPayload[K]
+        ) => {
+            setFormData((prev) => ({ ...prev, [key]: value }));
         },
         []
     );
 
-    // ------------------------------------------------------------
-    // Fetch prediction history
-    // ------------------------------------------------------------
-    const fetchHistory = useCallback(async () => {
+    const resetForm = useCallback(() => {
+        setFormData(emptyPayload);
+    }, []);
+
+    // ---------------- Prediction state ----------------
+    const [result, setResult] = useState<DenguePredictionResult | null>(null);
+    const [isPredicting, setIsPredicting] = useState(false);
+    const [predictionError, setPredictionError] = useState<string | null>(null);
+
+    const submitPrediction = useCallback(async () => {
+        setIsPredicting(true);
+        setPredictionError(null);
+        setResult(null);
+
+        try {
+            const response = await predictDengue(formData);
+            setResult(response);
+        } catch (err) {
+            if (err instanceof ApiError) {
+                setPredictionError(err.message);
+            } else {
+                setPredictionError('Prediction করতে সমস্যা হয়েছে। আবার চেষ্টা করো।');
+            }
+        } finally {
+            setIsPredicting(false);
+        }
+    }, [formData]);
+
+    const clearResult = useCallback(() => {
+        setResult(null);
+        setPredictionError(null);
+    }, []);
+
+    // ---------------- History state ----------------
+    const [history, setHistory] = useState<DenguePredictionRecord[]>([]);
+    const [isHistoryLoading, setIsHistoryLoading] = useState(false);
+    const [historyError, setHistoryError] = useState<string | null>(null);
+
+    const loadHistory = useCallback(async () => {
         setIsHistoryLoading(true);
         setHistoryError(null);
 
         try {
-            const response = await getPredictionHistory();
-            if (response.success) {
-                setHistory(response.results);
+            const records = await fetchPredictionHistory();
+            setHistory(records);
+        } catch (err) {
+            if (err instanceof ApiError) {
+                setHistoryError(err.message);
             } else {
-                setHistoryError({ message: response.error || "Failed to load history." });
+                setHistoryError('History load করতে সমস্যা হয়েছে।');
             }
-        } catch (error) {
-            setHistoryError(error as ApiError);
         } finally {
             setIsHistoryLoading(false);
         }
     }, []);
 
-    // ------------------------------------------------------------
-    // Fetch a single record's detail
-    // ------------------------------------------------------------
-    const fetchRecordDetail = useCallback(async (id: string) => {
-        setIsDetailLoading(true);
-        setDetailError(null);
-        setSelectedRecord(null);
+    const value: DataContextValue = {
+        formData,
+        setFormData,
+        updateField,
+        resetForm,
 
-        try {
-            const response = await getPredictionDetail(id);
-            if (response.success && response.result) {
-                setSelectedRecord(response.result);
-            } else {
-                setDetailError({ message: response.error || "Record not found." });
-            }
-        } catch (error) {
-            setDetailError(error as ApiError);
-        } finally {
-            setIsDetailLoading(false);
-        }
-    }, []);
-
-    // ------------------------------------------------------------
-    // Clear helpers
-    // ------------------------------------------------------------
-    const clearCurrentResult = useCallback(() => {
-        setCurrentResult(null);
-        setCurrentRecordId(null);
-        setPredictionError(null);
-    }, []);
-
-    const clearSelectedRecord = useCallback(() => {
-        setSelectedRecord(null);
-        setDetailError(null);
-    }, []);
-
-    // ------------------------------------------------------------
-    const value: DataContextType = {
-        currentResult,
-        currentRecordId,
+        result,
         isPredicting,
         predictionError,
+        submitPrediction,
+        clearResult,
 
         history,
         isHistoryLoading,
         historyError,
-
-        selectedRecord,
-        isDetailLoading,
-        detailError,
-
-        submitPrediction,
-        fetchHistory,
-        fetchRecordDetail,
-        clearCurrentResult,
-        clearSelectedRecord,
+        loadHistory,
     };
 
     return <DataContext.Provider value={value}>{children}</DataContext.Provider>;
 }
 
-// ============================================================
-// Hook
-// ============================================================
-
-export function useData(): DataContextType {
-    const context = useContext(DataContext);
-    if (context === undefined) {
-        throw new Error("useData must be used within a DataProvider");
+export function useData(): DataContextValue {
+    const ctx = useContext(DataContext);
+    if (!ctx) {
+        throw new Error('useData অবশ্যই <DataProvider> এর ভিতরে ব্যবহার করতে হবে');
     }
-    return context;
+    return ctx;
 }
