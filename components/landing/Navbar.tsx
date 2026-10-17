@@ -1,14 +1,11 @@
 'use client';
 
-// ===================================================================
-// components/landing/Navbar.tsx
-// Framer Motion animated navbar - slide down on load, animated mobile menu,
-// hover/tap micro-interactions, scroll-based shadow effect।
-// ===================================================================
-
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Activity, Menu, X } from 'lucide-react';
+import { Activity, Menu, X, CheckCircle2, AlertCircle } from 'lucide-react';
+
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000';
+const ALIVE_ENDPOINT = `${API_BASE_URL}/alive/`;
 
 const NAV_LINKS = [
     { label: 'হোম', href: '#home' },
@@ -18,9 +15,13 @@ const NAV_LINKS = [
     { label: 'সম্পর্কে', href: '#about' },
 ];
 
+type AliveStatus = 'idle' | 'checking' | 'connected' | 'error';
+
 export default function Navbar() {
     const [isOpen, setIsOpen] = useState(false);
     const [scrolled, setScrolled] = useState(false);
+    const [aliveStatus, setAliveStatus] = useState<AliveStatus>('idle');
+    const [aliveMessage, setAliveMessage] = useState<string>('');
 
     useEffect(() => {
         const handleScroll = () => setScrolled(window.scrollY > 10);
@@ -28,15 +29,75 @@ export default function Navbar() {
         return () => window.removeEventListener('scroll', handleScroll);
     }, []);
 
+    const checkAlive = async () => {
+        setAliveStatus('checking');
+        setAliveMessage('মডেলের সাথে সংযোগ করা হচ্ছে...');
+        try {
+            const response = await fetch(ALIVE_ENDPOINT, {
+                method: 'GET',
+                headers: { 'Content-Type': 'application/json' },
+                cache: 'no-store',
+            });
+            if (response.ok) {
+                const text = await response.text();
+                if (text.includes('alive')) {
+                    setAliveStatus('connected');
+                    setAliveMessage('Model Connected');
+                } else {
+                    setAliveStatus('error');
+                    setAliveMessage('মডেলxpected উত্তর পাওয়া যায়নি।');
+                }
+            } else {
+                setAliveStatus('error');
+                setAliveMessage(`সার্ভার এরর (${response.status})`);
+            }
+        } catch {
+            setAliveStatus('error');
+            setAliveMessage('সার্ভারের সাথে connect করা যাচ্ছে না।');
+        }
+    };
+
+    const statusIcon =
+        aliveStatus === 'connected' ? (
+            <CheckCircle2 size={14} className="text-green-500" />
+        ) : aliveStatus === 'error' ? (
+            <AlertCircle size={14} className="text-red-500" />
+        ) : null;
+
+    const aliveButton = (
+        <motion.button
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.96 }}
+            onClick={checkAlive}
+            disabled={aliveStatus === 'checking'}
+            className={`flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium transition-all duration-200 ${
+                aliveStatus === 'connected'
+                    ? 'bg-green-50 border border-green-200 text-green-700 hover:bg-green-100 disabled:opacity-100'
+                    : aliveStatus === 'error'
+                        ? 'bg-red-50 border border-red-200 text-red-700 hover:bg-red-100 disabled:opacity-100'
+                        : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-60'
+            }`}
+        >
+            {statusIcon}
+            {aliveStatus === 'checking' ? (
+                <span className="animate-pulse">চেক করছে...</span>
+            ) : aliveStatus === 'connected' ? (
+                <span>Model Connected</span>
+            ) : (
+                <span>অ্যালাইভ চেক করুন</span>
+            )}
+        </motion.button>
+    );
+
     return (
         <motion.header
             initial={{ y: -80, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             transition={{ duration: 0.6, ease: 'easeOut' }}
             className={`sticky top-0 z-50 w-full border-b backdrop-blur-md transition-all duration-300 ${scrolled
-                    ? 'border-slate-200 bg-white/90 shadow-sm'
-                    : 'border-transparent bg-white/60'
-                }`}
+                ? 'border-slate-200 bg-white/90 shadow-sm'
+                : 'border-transparent bg-white/60'
+            }`}
         >
             <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3 sm:px-6">
                 {/* ---------- Logo ---------- */}
@@ -73,6 +134,7 @@ export default function Navbar() {
                             {link.label}
                         </motion.a>
                     ))}
+                    {aliveButton}
                 </nav>
 
                 {/* ---------- CTA (desktop) ---------- */}
@@ -145,6 +207,7 @@ export default function Navbar() {
                                     {link.label}
                                 </motion.a>
                             ))}
+                            {aliveButton}
                             <motion.a
                                 href="#predict"
                                 onClick={() => setIsOpen(false)}
