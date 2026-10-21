@@ -5,7 +5,7 @@
 // Framer Motion animated single-page: Hero + Form + Result + History
 // ===================================================================
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence, Variants } from 'framer-motion';
 import { useData } from '@/context/DataContext';
 import { CBC_FIELDS, type Gender } from '@/types';
@@ -487,7 +487,9 @@ export default function HomePage() {
                 <div className="h-4 w-full overflow-hidden rounded-full bg-slate-100">
                   <motion.div
                     initial={{ width: 0 }}
-                    animate={{ width: `${Math.min(result.probability_percent, 100)}%` }}
+                    animate={{
+                      width: `${Math.min(Math.max(result.probability_percent, 0), 100)}%`,
+                    }}
                     transition={{ duration: 1, ease: 'easeOut', delay: 0.2 }}
                     className={`relative h-full overflow-hidden rounded-full ${barColor}`}
                   >
@@ -674,35 +676,53 @@ export default function HomePage() {
 // ---------------------------------------------------------------------
 // Animated percentage counter
 // ---------------------------------------------------------------------
+// আগের implementation-এ দুইটা state ছিল (display + prevValue)। সেটার কারণে:
+//   1) mount-এর সময় prevValue === value হয়ে যেত, তাই effect early-return
+//      করত এবং % টা চিরকাল 0% দেখাত (result block remount হওয়ায় প্রতিবার)।
+//   2) prevValue update হলে effect পুনরায় চালু হত, কিন্তু cleanup আগের
+//      rAF cancel করে দিত -> animation 1 frame-এই freeze হয়ে যেত।
+// এখন: চলমান মানটা ref-এ থাকে, শেষে exact target value বসে, তাই সবসময়
+// backend থেকে আসা সঠিক probability_percent দেখা যায়।
+// ---------------------------------------------------------------------
 function AnimatedNumber({ value }: { value: number }) {
+  const target = Number.isFinite(value) ? value : 0;
   const [display, setDisplay] = useState(0);
-  const [prevValue, setPrevValue] = useState(value);
+  const currentRef = useRef(0); // এখন কত % দেখাচ্ছে
 
   useEffect(() => {
-    if (prevValue === value) return;
+    const from = currentRef.current;
+    if (from === target) return;
 
-    const duration = 1000;
+    const duration = 900;
     const startTime = performance.now();
     let rafId: number;
 
     function animate(currentTime: number) {
-      const elapsed = currentTime - startTime;
-      const progress = Math.min(elapsed / duration, 1);
-      setDisplay(Math.round((prevValue + (value - prevValue) * progress) * 100) / 100);
+      const progress = Math.min((currentTime - startTime) / duration, 1);
+      const eased = 1 - Math.pow(1 - progress, 3); // easeOutCubic
+
       if (progress < 1) {
+        const current = from + (target - from) * eased;
+        currentRef.current = current;
+        setDisplay(Math.round(current * 10) / 10);
         rafId = requestAnimationFrame(animate);
+      } else {
+        // সবসময় শেষে exact backend value বসাও
+        currentRef.current = target;
+        setDisplay(target);
       }
     }
+
     rafId = requestAnimationFrame(animate);
 
     return () => cancelAnimationFrame(rafId);
-  }, [value, prevValue]);
+  }, [target]);
 
-  useEffect(() => {
-    setPrevValue(value);
-  }, [value]);
-
-  return <span className="font-bold text-slate-800">{display}%</span>;
+  return (
+    <span className="font-bold text-slate-800">
+      {display.toFixed(2)}%
+    </span>
+  );
 }
 
 // ---------------------------------------------------------------------
